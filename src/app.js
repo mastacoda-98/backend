@@ -12,15 +12,19 @@ app.use(
 );
 
 app.use(
-  express.json({
+  express.json({ // to parse JSON bodies
     limit: "16kb",
   })
 );
 
 app.use(
   express.urlencoded({
-    extended: true,
+    extended: true, // to make nested objects work
   })
 );
+
+app.use(express.static("public")); // to keep static files like images, css, js in public folder
+
+app.use(cookieParser()); // to parse cookies
 
 export default app;
