@@ -59,7 +59,7 @@ userSchema.methods.generateAuthToken = function () {
 
 userSchema.methods.generateRefreshToken = function () {
   return jwt.sign(
-    { _id: this._id, email: this.email }, // payloads
+    { _id: this._id }, // payloads
     process.env.REFRESH_TOKEN_SECRET,
     { expiresIn: process.env.REFRESH_TOKEN_EXPIRY || "7d" }
   );

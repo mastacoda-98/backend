@@ -1,4 +1,5 @@
-class apiError extends Error { // Custom error class for API errors, learn from node error doc
+class apiError extends Error {
+  // Custom error class for API errors, learn from node error doc
   constructor(
     message = "Something went wrong",
     statusCode,
