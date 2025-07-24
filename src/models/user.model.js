@@ -1,10 +1,10 @@
 import mongoose from "mongoose";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
 const userSchema = new mongoose.Schema(
   {
-    name: {
+    username: {
       type: String,
       required: true,
       trim: true,
@@ -20,6 +20,10 @@ const userSchema = new mongoose.Schema(
     avatar: {
       type: String,
       default: "https://example.com/default-avatar.png",
+    },
+    cover: {
+      type: String,
+      default: "https://example.com/default-cover.png",
     },
     watchHistory: [
       {

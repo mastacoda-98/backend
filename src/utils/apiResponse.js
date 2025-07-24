@@ -6,3 +6,5 @@ class apiResponse {
     this.success = statusCode >= 200 && statusCode < 300; // Determine if the response is successful, learn more about HTTP status codes
   }
 }
+
+export default apiResponse;
