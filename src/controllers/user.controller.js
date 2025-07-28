@@ -5,20 +5,6 @@ import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import apiResponse from "../utils/apiResponse.js";
 import fs from "fs"; // file system module in node to handle file operations
 
-// Helper function to clean up uploaded files
-const cleanupFiles = (req) => {
-  if (req.files) {
-    Object.keys(req.files).forEach(fieldName => {
-      req.files[fieldName].forEach(file => {
-        if (fs.existsSync(file.path)) {
-          fs.unlinkSync(file.path);
-          console.log("Cleaned up file:", file.path);
-        }
-      });
-    });
-  }
-};
-
 const getUser = asyncHandler(async (req, res) => {
   // Logic to handle user registration
   // get user details from req.body passed from frontend
@@ -30,12 +16,10 @@ const getUser = asyncHandler(async (req, res) => {
   const { username, email, password } = req.body;
 
   if (!username || !email || !password) {
-    cleanupFiles(req); // Clean up uploaded files before throwing error
     throw new apiError(400, "Please provide all required fields");
   }
 
   if ((await User.findOne({ username })) || (await User.findOne({ email }))) {
-    cleanupFiles(req); // Clean up uploaded files before throwing error
     throw new apiError(400, "Username or Email already exists");
   }
 
@@ -45,7 +29,6 @@ const getUser = asyncHandler(async (req, res) => {
   console.log("File paths:", { avatarPath, coverPath });
 
   if (!avatarPath) {
-    cleanupFiles(req); // Clean up uploaded files before throwing error
     throw new apiError(400, "Avatar is required");
   }
 
@@ -75,5 +58,75 @@ const getUser = asyncHandler(async (req, res) => {
   });
 });
 
-export { getUser };
-export default getUser;
+const loginUser = asyncHandler(async (req, res) => {
+  const { email, username, password } = req.body;
+  if (!email && !username) {
+    throw new apiError(400, "Email or Username is required");
+  }
+
+  if (!password) {
+    throw new apiError(400, "Password is required");
+  }
+
+  const user = await User.findOne({ $or: [{ email }, { username }] });
+
+  if (!user) {
+    throw new apiError(404, "User not found");
+  }
+
+  const isPasswordValid = await user.comparePassword(password);
+
+  if (!isPasswordValid) {
+    throw new apiError(401, "Invalid password");
+  }
+
+  const refreshToken = user.generateRefreshToken();
+  const accessToken = user.generateAuthToken();
+
+  user.refreshToken = refreshToken;
+  await user.save();
+
+  const loggedInUser = await User.findById(user._id).select(
+    "-password -refreshToken"
+  );
+
+  const options = {
+    // Set cookie options, you can customize these as needed
+    httpOnly: true,
+    secure: true,
+  };
+
+  return res
+    .status(200)
+    .cookie("accessToken", accessToken, options) // Set the access token in a cookie
+    .cookie("refreshToken", refreshToken, options) // Set the refresh token in a cookie
+    .json(
+      new apiResponse(
+        200,
+        {
+          user: loggedInUser,
+          accessToken,
+          refreshToken,
+        },
+        "Login successful"
+      )
+    );
+});
+
+const logoutUser = asyncHandler(async (req, res) => {
+  await User.findByIdAndUpdate(req.user._id, { refreshToken: null });
+
+  const options = {
+    // Set cookie options, you can customize these as needed
+    httpOnly: true,
+    secure: true,
+  };
+
+  return res
+    .status(200)
+    .clearCookie("accessToken", options) // Clear the access token cookie
+    .clearCookie("refreshToken", options) // Clear the refresh token cookie
+    .json(new apiResponse(200, {}, "Logout successful")); // Send a success response
+});
+
+export { getUser, loginUser, logoutUser };

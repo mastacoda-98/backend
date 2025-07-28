@@ -43,7 +43,9 @@ const userSchema = new mongoose.Schema(
 );
 
 userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next(); // read about pre in middleware in mongo
+  if (!this.isModified("password")) {
+    return next();
+  } // read about pre in middleware in mongo
   this.password = await bcrypt.hash(this.password, 10);
   next();
 });
@@ -52,7 +54,7 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
   // read about methods in mongoose
   return await bcrypt.compare(candidatePassword, this.password);
 };
-
+// access token are short-lived, refresh tokens are long-lived
 userSchema.methods.generateAuthToken = function () {
   return jwt.sign(
     { _id: this._id, email: this.email }, // payloads

@@ -19,6 +19,7 @@ const uploadOnCloudinary = async (filePath) => {
     const kek = await v2.uploader.upload(filePath, {
       resource_type: "auto",
     });
+    fs.unlinkSync(filePath); // Delete the file from local storage after upload
     return kek;
   } catch (error) {
     console.error("Error uploading to Cloudinary:", error);
