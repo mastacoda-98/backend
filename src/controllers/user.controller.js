@@ -4,6 +4,7 @@ import apiError from "../utils/apiError.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import apiResponse from "../utils/apiResponse.js";
 import fs from "fs"; // file system module in node to handle file operations
+import jwt from "jsonwebtoken";
 
 const getUser = asyncHandler(async (req, res) => {
   // Logic to handle user registration
@@ -59,7 +60,7 @@ const getUser = asyncHandler(async (req, res) => {
 });
 
 const loginUser = asyncHandler(async (req, res) => {
-  const { email, username, password } = req.body;
+  const { username, email, password } = req.body;
   if (!email && !username) {
     throw new apiError(400, "Email or Username is required");
   }
@@ -68,7 +69,9 @@ const loginUser = asyncHandler(async (req, res) => {
     throw new apiError(400, "Password is required");
   }
 
-  const user = await User.findOne({ $or: [{ email }, { username }] });
+  const user = await User.findOne({
+    $or: [{ email }, { username }],
+  });
 
   if (!user) {
     throw new apiError(404, "User not found");
@@ -129,4 +132,41 @@ const logoutUser = asyncHandler(async (req, res) => {
     .json(new apiResponse(200, {}, "Logout successful")); // Send a success response
 });
 
-export { getUser, loginUser, logoutUser };
+const refreshUser = asyncHandler(async (req, res) => {
+  const refreshToken = req.cookies?.refreshToken;
+
+  if (!refreshToken) {
+    throw new apiError(401, "Unauthorized: No refresh token provided");
+  }
+
+  const user = await User.findOne({ refreshToken });
+
+  if (!user) {
+    throw new apiError(404, "Invalid refresh token");
+  }
+
+  const options = {
+    httpOnly: true,
+    secure: true,
+  };
+
+  const newAccessToken = await user.generateAuthToken();
+  const newRefreshToken = await user.generateRefreshToken();
+
+  user.refreshToken = newRefreshToken;
+  await user.save();
+
+  return res
+    .status(200)
+    .cookie("accessToken", newAccessToken, options) // Set the new access token in a cookie
+    .cookie("refreshToken", newRefreshToken, options) // Set the new refresh token in a cookie
+    .json(
+      new apiResponse(
+        200,
+        { accessToken: newAccessToken, refreshToken: newRefreshToken },
+        "Tokens refreshed successfully"
+      )
+    );
+});
+
+export { getUser, loginUser, logoutUser, refreshUser };
