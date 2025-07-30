@@ -6,7 +6,7 @@ import apiResponse from "../utils/apiResponse.js";
 import fs from "fs"; // file system module in node to handle file operations
 import jwt from "jsonwebtoken";
 
-const getUser = asyncHandler(async (req, res) => {
+const registerUser = asyncHandler(async (req, res) => {
   // Logic to handle user registration
   // get user details from req.body passed from frontend
   // validation
@@ -117,7 +117,11 @@ const loginUser = asyncHandler(async (req, res) => {
 });
 
 const logoutUser = asyncHandler(async (req, res) => {
-  await User.findByIdAndUpdate(req.user._id, { refreshToken: null });
+  await User.findByIdAndUpdate(
+    req.user._id,
+    { refreshToken: null },
+    { new: true }
+  );
 
   const options = {
     // Set cookie options, you can customize these as needed
@@ -161,12 +165,131 @@ const refreshUser = asyncHandler(async (req, res) => {
     .cookie("accessToken", newAccessToken, options) // Set the new access token in a cookie
     .cookie("refreshToken", newRefreshToken, options) // Set the new refresh token in a cookie
     .json(
-      new apiResponse(
-        200,
-        { accessToken: newAccessToken, refreshToken: newRefreshToken },
-        "Tokens refreshed successfully"
-      )
+      new apiResponse(200, "Tokens refreshed successfully", {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+      })
     );
 });
 
-export { getUser, loginUser, logoutUser, refreshUser };
+const getUser = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id).select(
+    "-password -refreshToken"
+  );
+  if (!user) {
+    throw new apiError(404, "User not found");
+  }
+
+  res.status(200).json({
+    data: new apiResponse(200, "User retrieved successfully", user),
+  });
+});
+
+const updateAvatar = asyncHandler(async (req, res) => {
+  const localPath = req.file?.path; // Access the uploaded avatar file path
+
+  if (!localPath) {
+    throw new apiError(400, "Avatar file is required");
+  }
+
+  const avatar = await uploadOnCloudinary(localPath);
+
+  if (!avatar?.url) {
+    throw new apiError(500, "Failed to upload avatar");
+  }
+
+  const user = await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set: { avatar: avatar.url },
+    },
+    { new: true } // what this does is that it will return new updated object
+  ).select("-password -refreshToken");
+
+  if (!user) {
+    throw new apiError(500, "Failed to update avatar");
+  }
+
+  res
+    .status(200)
+    .json(new apiResponse(200, "Avatar updated successfully", user));
+});
+
+const getChannelProfile = asyncHandler(async (res, req) => {
+  const { username } = req.params;
+
+  if (!username) {
+    throw new apiError(400, "Username is required");
+  }
+
+  const channel = await User.aggregate[
+    ({
+      $match: { username: username },
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id", // User field
+        foreignField: "channel", // Subscription field
+        as: "subscribers",
+      },
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id", // User field
+        foreignField: "subscriber", // Subscription field
+        as: "subscriptions",
+      },
+    },
+    {
+      $addFields: {
+        // adds a new field to the document channel
+        subscribersCount: { $size: "$subscribers" }, // Count of subscribers
+        subscriptionCount: { $size: "$subscriptions" }, // Count of subscriptions
+        // learn mroe about the syntax of $cond
+        isSubscribed: {
+          $cond: {
+            if: { $in: [req.user._id, "$subscriber.subscriber"] }, // Check if user is in subscribers of the channel we are visiting
+            then: true,
+            else: false, // If not subscribed
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        // Project only the required fields
+        username: 1,
+        avatar: 1,
+        cover: 1,
+        subscribersCount: 1,
+        subscriptionCount: 1,
+        isSubscribed: 1,
+        email: 1,
+      },
+    })
+  ];
+
+  if (!channel || channel.length === 0) {
+    throw new apiError(404, "Channel not found");
+  }
+
+  res.status(200).json(
+    new apiResponse(
+      200,
+      "Channel profile retrieved successfully",
+      channel[0] // Since we are matching by username, we expect only one result
+    )
+  ); // Return the first channel found
+});
+
+export {
+  registerUser,
+  loginUser,
+  logoutUser,
+  refreshUser,
+  getUser,
+  updateAvatar,
+  getChannelProfile,
+};

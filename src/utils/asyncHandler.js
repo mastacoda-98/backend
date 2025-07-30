@@ -4,7 +4,7 @@ const asyncHandler = (requestHandler) => {
     try {
       await requestHandler(req, res, next);
     } catch (error) {
-      next(error); // Pass error to Express error handling middleware
+      next(error); // Pass error to Express error handling middleware, in built Express.js
     }
   };
 };

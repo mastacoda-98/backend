@@ -1,9 +1,10 @@
 import { Router } from "express";
 import {
-  getUser,
+  registerUser,
   loginUser,
   logoutUser,
   refreshUser,
+  updateAvatar,
 } from "../controllers/user.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyToken } from "../middlewares/auth.middleware.js";
@@ -15,10 +16,14 @@ router.route("/register").post(
     { name: "avatar", maxCount: 1 }, // 'avatar' is the field name for the file upload
     { name: "cover", maxCount: 1 }, // 'cover' is another field name for file upload (if needed)
   ]),
-  getUser
+  registerUser
 );
 
 router.route("/login").post(loginUser);
+
+router
+  .route("/updateAvatar")
+  .post(verifyToken, upload.single("avatar"), updateAvatar);
 
 // secured routes
 router.route("/logout").post(verifyToken, logoutUser);
